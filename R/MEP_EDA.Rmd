@@ -1,0 +1,84 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(tidyr)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+```
+
+## load data
+```{r}
+df.members <- read.csv('../python_scrapper/MEP_lists.csv')
+df.votes <- read.csv('../python_scrapper/all_votes.csv')
+df.votes.definitions <- read.csv('../python_scrapper/MEP_votes_definitions.csv')
+```
+
+## filter on france
+
+```{r}
+df.france <- df.members #%>% filter(country=='France')
+df.france <- merge(df.france,df.votes, by.x='id',by.y='member_id')
+df.france$euro_vot_valoare_text <- as.character(df.france$euro_vot_valoare_text)
+df.party <- df.france %>% group_by(party,euro_vot_valoare_text) %>% summarise(n=n()) %>%
+  mutate(freq = n / sum(n)*100) %>% merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id')
+
+df.party %>% group_by(party) %>% summarise(sum(freq))
+```
+
+# plot
+```{r}
+ggplot() + geom_bar(aes(y = freq, x = party, fill = vote_name), data = df.party,
+                           stat="identity")+theme(axis.text.x = element_text(angle = 90))+coord_flip()
+```
+
+```{r}
+
+df.france.votes <- df.france %>% select(id,euro_act_id,euro_vot_valoare_text)
+df.france.votes <- df.france.votes %>% mutate(vote.value.int = factor(ifelse(euro_vot_valoare_text == "+", 1,ifelse(euro_vot_valoare_text == "-",-2,ifelse(euro_vot_valoare_text=='0',-1,0))))) %>% select(-euro_vot_valoare_text) %>% mutate(vote.value.int=as.numeric(vote.value.int))
+df.france.for.pca <-df.france.votes %>% spread(euro_act_id,vote.value.int,fill = 0)
+colnames(df.france.for.pca)<- make.names(colnames(df.france.for.pca))
+
+```
+
+## PCA
+
+```{r}
+scaled = prcomp(t(df.france.for.pca),scale=T)
+
+df.pca <- as.data.frame(scaled$rotation)
+
+party <- merge(df.france.for.pca,df.members,by='id',all.x = TRUE) #%>% filter(country=='France') #%>% select(party) 
+
+df.pca <- cbind(df.pca,party)
+
+p <-ggplot(df.pca,aes(PC3,PC2)) +geom_point(aes(colour=group))+theme(legend.position="bottom")#+geom_text(aes(label=party$name),hjust=0, vjust=0,size=3)
+
+ggplotly(p)
+
+
+```
+## plotly
+```{r}
+p <- plot_ly(df.pca,x=~PC3,y=~PC2,color=~group,type = 'scatter',text = ~ paste(name, party))
+
+p
+```
+
+## plot votes timeline
+
+```{r}
+member <- c(621,152,386)
+
+df.votes.activity <-df.votes %>% group_by(member_id,euro_vot_valoare_text)%>%  summarise(n=n()) %>%
+  mutate(freq = n / sum(n)*100) %>% merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id')  %>% merge(.,df.members,by.y='id',by.x='member_id') %>% filter(vote_name=='Absent') %>% arrange(freq)
+```
+
