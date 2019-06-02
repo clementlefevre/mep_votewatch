@@ -13,13 +13,47 @@ library(lubridate)
 library(dplyr)
 library(ggplot2)
 library(plotly)
+library(stringr)
 ```
 
 ## load data
 ```{r}
-df.members <- read.csv('../python_scrapper/MEP_lists.csv')
-df.votes <- read.csv('../python_scrapper/all_votes.csv')
-df.votes.definitions <- read.csv('../python_scrapper/MEP_votes_definitions.csv')
+df.members <- read.csv('../data/MEP_lists.csv')
+df.votes <- read.csv('../data/all_votes.csv')
+df.votes.definitions <- read.csv('../data/MEP_votes_definitions.csv')
+df.votes.actes <- read.csv('../data/MEP_votes_actes.csv')
+df.votes$date.vote <- as.Date(df.votes$mysql_data_text)
+df.domains <- read.csv('../data/MEP_votes_domains.csv')
+```
+
+## plot timeline
+
+```{r}
+member <- 386
+df.timeline <- df.votes %>% filter(member_id==member) %>% merge(.,df.members,by.x='member_id',by.y='id') %>% merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id') %>% merge(.,df.domains, by.x='euro_domeniu_id',by.y='euro_domeniu_id')
+
+df.timeline <- df.timeline %>% group_by(vote_name,date.vote) %>% summarise(n= n()) %>% arrange(date.vote)
+
+p <- plot_ly(df.timeline, x = ~date.vote, y = ~n, type = 'bar', name = ~vote_name,color=~vote_name) %>%
+  layout(yaxis = list(title = 'Count')
+         )
+p
+
+```
+## subplots
+```{r}
+ggplot(df.timeline,aes(as.factor(date.vote),n,fill=vote_name))+ geom_bar(stat = 'identity')+ facet_grid(vote_name~.)
+```
+## plot absent ranking
+```{r}
+df.all.votes<- df.votes %>% group_by(member_id,euro_vot_valoare_text) %>% summarise(n=n()) %>% 
+  mutate(freq = n / sum(n)*100) %>%merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id')%>% merge(.,df.members,by.x='member_id',by.y='id')
+
+df.absent <- df.all.votes %>% filter(vote_name=='Absent') %>% arrange(desc(n))
+df.absent$name <- str_replace(df.absent$name,"This person became MEP later than the general start of the term.","")
+df.absent$name <- factor(df.absent$name, levels = df.absent$name[order(df.absent$freq)])
+
+ggplot(df.absent %>% filter(country=='Ireland'),aes(x=name,y=freq, fill=country))+ geom_bar(stat = 'identity')+ coord_flip()
 ```
 
 ## filter on france
