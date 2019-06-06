@@ -14,6 +14,7 @@ library(dplyr)
 library(ggplot2)
 library(plotly)
 library(stringr)
+library(purrr)
 ```
 
 ## load data
@@ -23,96 +24,75 @@ df.votes <- read.csv('../data/all_votes.csv')
 df.votes.definitions <- read.csv('../data/MEP_votes_definitions.csv')
 df.votes.actes <- read.csv('../data/MEP_votes_actes.csv')
 df.votes$date.vote <- as.Date(df.votes$mysql_data_text)
+df.votes$week.vote <- paste0(year(df.votes$date.vote),'-',week(df.votes$date.vote))
+df.votes$week.date.vote <- as.Date(paste(year(df.votes$date.vote), week(df.votes$date.vote), 1, sep="-"), "%Y-%U-%u")
 df.domains <- read.csv('../data/MEP_votes_domains.csv')
+
+## filter votes content on key words
+patterns <- c("russia", "ukraine", "syria",'crimea')
+df.votes.actes$putin <- grepl(paste(patterns, collapse="|"), tolower(df.votes.actes$acte_title))
+
+df.votes <- merge(df.votes,df.votes.actes,by='euro_act_id')
+df.votes <- df.votes %>% mutate(status=ifelse(euro_vot_valoare_text %in% c('A','M'),'Absent','Present'))
+
+df.votes.per.session <- df.votes %>% group_by(member_id,week.date.vote,status ) %>% summarise(n=n()) 
+
+#write.csv(df.votes.per.session,'MEP_votes_per_session.csv')
 ```
 
-## plot timeline
 
+## group color
 ```{r}
-member <- 386
-df.timeline <- df.votes %>% filter(member_id==member) %>% merge(.,df.members,by.x='member_id',by.y='id') %>% merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id') %>% merge(.,df.domains, by.x='euro_domeniu_id',by.y='euro_domeniu_id')
-
-df.timeline <- df.timeline %>% group_by(vote_name,date.vote) %>% summarise(n= n()) %>% arrange(date.vote)
-
-p <- plot_ly(df.timeline, x = ~date.vote, y = ~n, type = 'bar', name = ~vote_name,color=~vote_name) %>%
-  layout(yaxis = list(title = 'Count')
-         )
-p
-
-```
-## subplots
-```{r}
-ggplot(df.timeline,aes(as.factor(date.vote),n,fill=vote_name))+ geom_bar(stat = 'identity')+ facet_grid(vote_name~.)
-```
-## plot absent ranking
-```{r}
-df.all.votes<- df.votes %>% group_by(member_id,euro_vot_valoare_text) %>% summarise(n=n()) %>% 
-  mutate(freq = n / sum(n)*100) %>%merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id')%>% merge(.,df.members,by.x='member_id',by.y='id')
-
-df.absent <- df.all.votes %>% filter(vote_name=='Absent') %>% arrange(desc(n))
-df.absent$name <- str_replace(df.absent$name,"This person became MEP later than the general start of the term.","")
-df.absent$name <- factor(df.absent$name, levels = df.absent$name[order(df.absent$freq)])
-
-ggplot(df.absent %>% filter(country=='Ireland'),aes(x=name,y=freq, fill=country))+ geom_bar(stat = 'identity')+ coord_flip()
+group.color <- list("EPP"="#50a3c3","EFDD"="#a15e7f","Greens/EFA"="#40796b","ENF"="#163e5d","S&D"="#d75054","GUE-NGL"="#ae5129","ALDE/ADLE"="#eda337","NI"="lightgrey","ECR"="#bdbd26")
+df.colors <-bind_cols(group.color) %>% gather() 
+colnames(df.colors)<- c('group','color')
+write.csv(df.colors,'../data/MEP_group_colors.csv')
 ```
 
-## filter on france
-
-```{r}
-df.france <- df.members #%>% filter(country=='France')
-df.france <- merge(df.france,df.votes, by.x='id',by.y='member_id')
-df.france$euro_vot_valoare_text <- as.character(df.france$euro_vot_valoare_text)
-df.party <- df.france %>% group_by(party,euro_vot_valoare_text) %>% summarise(n=n()) %>%
-  mutate(freq = n / sum(n)*100) %>% merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id')
-
-df.party %>% group_by(party) %>% summarise(sum(freq))
-```
-
-# plot
-```{r}
-ggplot() + geom_bar(aes(y = freq, x = party, fill = vote_name), data = df.party,
-                           stat="identity")+theme(axis.text.x = element_text(angle = 90))+coord_flip()
-```
 
 ```{r}
 
-df.france.votes <- df.france %>% select(id,euro_act_id,euro_vot_valoare_text)
-df.france.votes <- df.france.votes %>% mutate(vote.value.int = factor(ifelse(euro_vot_valoare_text == "+", 1,ifelse(euro_vot_valoare_text == "-",-2,ifelse(euro_vot_valoare_text=='0',-1,0))))) %>% select(-euro_vot_valoare_text) %>% mutate(vote.value.int=as.numeric(vote.value.int))
-df.france.for.pca <-df.france.votes %>% spread(euro_act_id,vote.value.int,fill = 0)
-colnames(df.france.for.pca)<- make.names(colnames(df.france.for.pca))
+df.votes <- read.csv('../data/all_votes.csv')
+df.members <- read.csv('../data/MEP_lists.csv')
+df.votes.actes <- read.csv('../data/MEP_votes_actes.csv')
+df.domains <- read.csv('../data/MEP_votes_domains.csv')
+df.colors <- read.csv('../data/MEP_group_colors.csv')
 
-```
+unique(df.votes$euro_domeniu_id)
 
-## PCA
+df <- df.votes %>% mutate(vote.value.int = factor(ifelse(euro_vot_valoare_text == "+", 1,ifelse(euro_vot_valoare_text == "-",-2,ifelse(euro_vot_valoare_text=='0',-1,0))))) %>% select(-euro_vot_valoare_text) %>% mutate(vote.value.int=as.numeric(vote.value.int))
 
-```{r}
-scaled = prcomp(t(df.france.for.pca),scale=T)
+make.pca.df <- function(domain_id,df){
+  df.pca <- df %>%filter(euro_domeniu_id==domain_id)
+  
+df.for.pca <-df.pca %>% select(member_id,euro_act_id,vote.value.int) %>% spread(euro_act_id,vote.value.int,fill = 0)
+colnames(df.for.pca)<- make.names(colnames(df.for.pca))
+
+  scaled = prcomp(t(df.for.pca),scale=T)
 
 df.pca <- as.data.frame(scaled$rotation)
 
-party <- merge(df.france.for.pca,df.members,by='id',all.x = TRUE) #%>% filter(country=='France') #%>% select(party) 
+party <- merge(df.for.pca,df.members,by.x='member_id',by.y='id',all.x = TRUE) #%>% filter(country=='France') #%>% select(party) 
 
-df.pca <- cbind(df.pca,party)
+df.pca <- cbind(df.pca,party) %>% select(PC1,PC2,PC3,name,group,link,country,party,status )
+df.pca$domain_id <- domain_id
+return (df.pca)
+}
 
-p <-ggplot(df.pca,aes(PC3,PC2)) +geom_point(aes(colour=group))+theme(legend.position="bottom")#+geom_text(aes(label=party$name),hjust=0, vjust=0,size=3)
 
-ggplotly(p)
 
+df.all.pca <- unique(df.votes$euro_domeniu_id) %>% map_dfr(make.pca.df,df)
+df.all.pca <- merge(df.all.pca,df.domains,by.x='domain_id',by.y='euro_domeniu_id')
+
+write.csv(df.all.pca,'../data/df_all_pca.csv')
 
 ```
-## plotly
+
+# plot ranking
 ```{r}
-p <- plot_ly(df.pca,x=~PC3,y=~PC2,color=~group,type = 'scatter',text = ~ paste(name, party))
+source('shiny/functions.R')
+plot.ranking(df.ranking,0
+             )
 
-p
-```
-
-## plot votes timeline
-
-```{r}
-member <- c(621,152,386)
-
-df.votes.activity <-df.votes %>% group_by(member_id,euro_vot_valoare_text)%>%  summarise(n=n()) %>%
-  mutate(freq = n / sum(n)*100) %>% merge(.,df.votes.definitions,by.x='euro_vot_valoare_text',by.y='vote_id')  %>% merge(.,df.members,by.y='id',by.x='member_id') %>% filter(vote_name=='Absent') %>% arrange(freq)
 ```
 
