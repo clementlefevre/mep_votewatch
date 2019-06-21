@@ -199,7 +199,7 @@ server <- function(input, output, session) {
   
   output$downloadData <- downloadHandler(
     filename = function() {
-      paste("output", "zip", sep=".")
+      paste("MEP_data_term8", "zip", sep=".")
     },
     content = function(fname) {
     
