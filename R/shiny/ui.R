@@ -46,7 +46,7 @@ fluidPage(
       tabPanel(
         'About',
         h3("Idea"),
-        p("Following ",a(href = "https://www.economist.com/graphic-detail/2019/06/01/centrist-liberals-gained-the-most-power-in-the-eu-parliament", "this article from the Economist"),",i tried to figure out how to visualize the votes of the Members of the EU Parliament. The Economist used two criteria, ie. Pro/Anti-EU & Left/Right :"),
+        p("Following ",a(href = "https://www.economist.com/graphic-detail/2019/06/01/centrist-liberals-gained-the-most-power-in-the-eu-parliament", "this article from the Economist"),", i tried to figure out how to visualize the votes of the Members of the EU Parliament. The Economist used two criteria, ie. Pro/Anti-EU & Left/Right :"),
         img(src = 'the_economist.png'),
         tags$br(),
         tags$br(),
@@ -55,7 +55,7 @@ fluidPage(
         h3("Methodology"),
         p("The data source is the website of the NGO ",a(href="https://www.votewatch.eu/","MEP Votes Watch"), "that retrieves all voting history of the MEP. With the voting history of all MEP, i proceeded to a Principal Component Analysis on the MEP/Votes matrix."),
 p("To achieve this, i converted the vote result into a numerical value : ",strong("in favour"), ": +1 point,",strong(" absent"),": 0 point, ",strong("abstained"),": -1 point, and",strong("against")," : - 2 points."),
-p('The explained variance on the first PC vector is, depeding on the domain, between 91 and 98 %.'),
+p('The explained variance on the first PC vector is, depending on the domain, between 91 and 98 %.'),
         downloadButton("downloadData", label = "Download MEP Term 8 data")
       )
     ))
