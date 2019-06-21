@@ -58,8 +58,6 @@ df.votes.actes <- read.csv('../data/MEP_votes_actes.csv')
 df.domains <- read.csv('../data/MEP_votes_domains.csv')
 df.colors <- read.csv('../data/MEP_group_colors.csv')
 
-unique(df.votes$euro_domeniu_id)
-
 df <- df.votes %>% mutate(vote.value.int = factor(ifelse(euro_vot_valoare_text == "+", 1,ifelse(euro_vot_valoare_text == "-",-2,ifelse(euro_vot_valoare_text=='0',-1,0))))) %>% select(-euro_vot_valoare_text) %>% mutate(vote.value.int=as.numeric(vote.value.int))
 
 make.pca.df <- function(domain_id,df){
@@ -88,11 +86,5 @@ write.csv(df.all.pca,'../data/df_all_pca.csv')
 
 ```
 
-# plot ranking
-```{r}
-source('shiny/functions.R')
-plot.ranking(df.ranking,0
-             )
 
-```
 

@@ -4,6 +4,7 @@
 # For all your server needs
 ###################
 
+
 library(plotly)
 library(gridExtra)
 
@@ -25,15 +26,49 @@ server <- function(input, output, session) {
       
     })
   
+  output$countryChoice = renderUI({
+    if (input$scope == 'members') {
+      selectInput(
+        "countryChoice",
+        "Choose a country",
+        choices = c('all countries', all.countries),
+        
+        selected = "all countries"
+      )
+    } else {
+      return(NULL)
+    }
+  })
+  
+  output$memberChoice = renderUI({
+    if (input$scope == 'members') {
+      members.id.country = pca.data() %>% pull(member_id)
+      df.members.selected <-
+        df.members %>% filter(id %in% members.id.country)
+      
+      
+      selectInput(
+        "memberChoice",
+        "Choose a member",
+        choices = split(df.members.selected$id, df.members.selected$name)
+        
+      )
+      
+      
+    } else{
+      return(NULL)
+    }
+  })
+  
   pca.data <-
     eventReactive(c(input$domainChoice, input$countryChoice), {
-      pca <- df.pca  %>% filter(euro_domeniu_nume == input$domainChoice)
+      data <- df.pca  %>% filter(euro_domeniu_nume == input$domainChoice)
       
       if (input$countryChoice != 'all countries') {
-        pca <- pca %>% filter(country == input$countryChoice)
+        data <- data %>% filter(country == input$countryChoice)
       }
       
-      pca
+      data
       
     })
   
@@ -41,6 +76,13 @@ server <- function(input, output, session) {
   
   
   output$plot.timeline <- renderPlot({
+    
+    if (input$scope == 'party') {
+      
+      return(NULL)}
+    
+    
+    req(input$memberChoice)
     p <-
       ggplot(
         df.session.votes %>% filter(member_id == input$memberChoice),
@@ -58,9 +100,15 @@ server <- function(input, output, session) {
   })
   
   output$plot.ranking <- renderPlot({
+    
+    if (input$scope == 'party') {
+      
+      return(NULL)}
+    
+    
     df <- ranking.data()$df
     width.bar <- ranking.data()$width.bar
-    print(head(df))
+    
     df$name <-
       factor(df$name, levels = (df$name[order(df$presence.ratio)]))
     p.percent.votes <-
@@ -99,37 +147,69 @@ server <- function(input, output, session) {
   })
   
   output$plot.pca <- renderPlotly({
-    data <- pca.data()
-    
-    if (input$pca_vector == 'pc1.2') {
+    if (input$scope == 'members')
+    {
+      df <- pca.data()
+      req(input$memberChoice)
+      
+      
+      df <-
+        df %>% mutate(size_marks = ifelse(member_id == input$memberChoice, 100, 10))
+      
       plot_ly(
-        data,
+        df,
         x =  ~ PC1,
         y =  ~ PC2,
         color =  ~ group,
+        #alpha = 0.6,
         colors = cols,
         type = 'scatter',
-        text = ~ paste(name, party)
-      ) %>% layout(xaxis = list(range = c(min.pc1*1.1,max.pc1*1.1)),
-                   yaxis = list(range = c(min.pc2*1.1,max.pc2*1.1)))
+        text = ~ paste(name, party),
+        size =  ~ size_marks
+      )  %>%
+        layout(xaxis = list(range = c(min.pc1 * 1.1, max.pc1 * 1.1)),
+               yaxis = list(range = c(min.pc2 * 1.1, max.pc2 * 1.1)))
+      
+    } else if (input$scope == 'party') {
+      df <- df.pca.party %>% filter(euro_domeniu_nume == input$domainChoice)
       
       
-    } else  if (input$pca_vector == 'pc2.3') {
       plot_ly(
-        data,
-        x =  ~ PC3,
+        df,
+        x =  ~ PC1,
         y =  ~ PC2,
         color =  ~ group,
+        #alpha = 0.6,
         colors = cols,
         type = 'scatter',
-        text = ~ paste(name, party)
-      )%>% layout(xaxis = list(range = c(min.pc3*1.1,max.pc3*1.1)),
-                  yaxis = list(range = c(min.pc2*1.1,max.pc2*1.1)))
+        text = ~ party,
+        size =  ~ size
+        
+      )  %>%
+        layout(xaxis = list(range = c(min(df$PC1) * 1.1, max(df$PC1) * 1.1)),
+               yaxis = list(range = c(min(df$PC2) * 1.1, max(df$PC2) * 1.1)))
     }
     
     
     
   })
+  
+  
+  
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("output", "zip", sep=".")
+    },
+    content = function(fname) {
+    
+     
+    all.files = paste0('data/',list.files('data/'))
+ 
+      zip(zipfile=fname, files= all.files)
+    },
+    contentType = "application/zip"
+  )
   
   
   
