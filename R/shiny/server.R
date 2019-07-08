@@ -60,6 +60,14 @@ server <- function(input, output, session) {
     }
   })
   
+  output$selected_mep <- renderText({
+    req(input$memberChoice)
+    name_detail <-
+      df.members %>% filter(id == input$memberChoice) %>% pull(name)
+    paste0('Voting history for : ', name_detail)
+  })
+  
+  
   pca.data <-
     eventReactive(c(input$domainChoice, input$countryChoice), {
       data <- df.pca  %>% filter(euro_domeniu_nume == input$domainChoice)
@@ -76,10 +84,9 @@ server <- function(input, output, session) {
   
   
   output$plot.timeline <- renderPlot({
-    
     if (input$scope == 'party') {
-      
-      return(NULL)}
+      return(NULL)
+    }
     
     
     req(input$memberChoice)
@@ -100,10 +107,9 @@ server <- function(input, output, session) {
   })
   
   output$plot.ranking <- renderPlot({
-    
     if (input$scope == 'party') {
-      
-      return(NULL)}
+      return(NULL)
+    }
     
     
     df <- ranking.data()$df
@@ -154,40 +160,49 @@ server <- function(input, output, session) {
       
       
       df <-
-        df %>% mutate(size_marks = ifelse(member_id == input$memberChoice, 100, 10))
+        df %>% mutate(size_marks = ifelse(member_id == input$memberChoice, 300, 10))
+      
+
       
       plot_ly(
         df,
-        x =  ~ PC1,
-        y =  ~ PC2,
+        x =  ~ PC2,
+        y =  ~ PC1,
         color =  ~ group,
-        #alpha = 0.6,
+        #alpha = 1,
+        #opacity = ~alpha_mark,
         colors = cols,
         type = 'scatter',
+        mode = 'markers',
         text = ~ paste(name, party),
         size =  ~ size_marks
+      
+        
+       
       )  %>%
-        layout(xaxis = list(range = c(min.pc1 * 1.1, max.pc1 * 1.1)),
-               yaxis = list(range = c(min.pc2 * 1.1, max.pc2 * 1.1)))
+        layout(yaxis = list(range = c(min.pc1 * 1.1, max.pc1 * 1.1)),
+               xaxis = list(range = c(min.pc2 * 1.1, max.pc2 * 1.1)))
       
     } else if (input$scope == 'party') {
-      df <- df.pca.party %>% filter(euro_domeniu_nume == input$domainChoice)
+      df <-
+        df.pca.party %>% filter(euro_domeniu_nume == input$domainChoice)
       
       
       plot_ly(
         df,
-        x =  ~ PC1,
-        y =  ~ PC2,
+        x =  ~ PC2,
+        y =  ~ PC1,
         color =  ~ group,
         #alpha = 0.6,
         colors = cols,
         type = 'scatter',
+        mode = 'markers',
         text = ~ party,
         size =  ~ size
         
       )  %>%
-        layout(xaxis = list(range = c(min(df$PC1) * 1.1, max(df$PC1) * 1.1)),
-               yaxis = list(range = c(min(df$PC2) * 1.1, max(df$PC2) * 1.1)))
+        layout(yaxis = list(range = c(min(df$PC1) * 1.1, max(df$PC1) * 1.1)),
+               xaxis = list(range = c(min(df$PC2) * 1.1, max(df$PC2) * 1.1)))
     }
     
     
@@ -199,14 +214,12 @@ server <- function(input, output, session) {
   
   output$downloadData <- downloadHandler(
     filename = function() {
-      paste("MEP_data_term8", "zip", sep=".")
+      paste("MEP_data_term8", "zip", sep = ".")
     },
     content = function(fname) {
-    
-     
-    all.files = paste0('data/',list.files('data/'))
- 
-      zip(zipfile=fname, files= all.files)
+      all.files = paste0('data/', list.files('data/'))
+      
+      zip(zipfile = fname, files = all.files)
     },
     contentType = "application/zip"
   )
