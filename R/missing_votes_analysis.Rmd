@@ -1,0 +1,37 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(data.table)
+
+df_MEP_votes_acts<- read.csv('shiny/data/MEP_votes_actes.csv') %>% select(-X)
+f_all_votes <- unzip('shiny/data/all_votes.zip')
+df_all_votes <- fread(f_all_votes)
+df_actes_final_votes <- read.csv('shiny/data/MEP_actes_final_result.csv')
+df_votes_definitions <- read.csv('shiny/data/MEP_votes_definitions.csv')
+df_all_votes <- merge(df_all_votes,df_votes_definitions,by.x='euro_vot_valoare_text',by.y='vote_id')
+```
+
+# manually compute votes per actes summaries :
+```{r}
+
+votes_results_summary <- df_all_votes  %>% select(vote_name,euro_act_id) %>%group_by(euro_act_id,vote_name) %>% summarize(votes_count = n()) %>% spread(vote_name,votes_count)
+
+
+groupy_votes <- df_all_votes  %>% filter(vote_name %in% c('Against','In favour')) %>% select(vote_name,euro_act_id,mysql_data_text) %>%group_by(euro_act_id,mysql_data_text,vote_name) %>% summarize(votes_count = n())
+groupy_votes_result<- groupy_votes%>% summarize(votes_result = vote_name[which.max(votes_count)])
+
+groupy_votes_result <- merge(groupy_votes_result,df_MEP_votes_acts,by='euro_act_id')
+groupy_votes_result <- merge(groupy_votes_result,votes_results_summary,by='euro_act_id')
+groupy_votes_result <- merge(groupy_votes_result,df_actes_final_votes %>% select(euro_act_id,vote_name,policy_area_name,act_type_name),by='euro_act_id',all.x=TRUE)
+write.csv(groupy_votes_result,'shiny/data/MEP_votes_summary.csv')
+```
+
